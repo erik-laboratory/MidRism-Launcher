@@ -13,9 +13,6 @@
 SetupWizard::SetupWizard(QWidget* parent) : QWizard(parent)
 {
     setObjectName(QStringLiteral("SetupWizard"));
-SetupWizard::SetupWizard(QWidget* parent) : QWizard(parent)
-{
-    setObjectName(QStringLiteral("SetupWizard"));
     setWindowIcon(Application::logo());
     resize(620, 660);
     setMinimumSize(300, 400);
