@@ -1550,7 +1550,7 @@ JavaInstallList* Application::javalist()
 
 QIcon Application::logo()
 {
-    return QIcon(":/" + BuildConfig.LAUNCHER_SVGFILENAME);
+    return QIcon(":/org.prismlauncher.PrismLauncher_256.png");
 }
 
 bool Application::openJsonEditor(const QString& filename)
