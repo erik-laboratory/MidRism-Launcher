@@ -17,16 +17,62 @@ on:
       environment:
         description: Deployment environment to run under
         type: string
+
   workflow_dispatch:
     inputs:
       build-type:
         description: Type of build (Debug or Release)
-        type: string
-        default: Debug
+        type: choice
+        options:
+          - Release
+          - Debug
+        default: Release
+      platform:
+        description: Platform to build
+        type: choice
+        options:
+          - Windows x64
+          - Linux
+          - All
+        default: Windows x64
 
 permissions: {}
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - name: Select platforms
+        id: select
+        env:
+          PLATFORM: ${{ inputs.platform }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          python - <<'PYSELECT' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          all_platforms = [{'os': 'ubuntu-24.04', 'artifact-name': 'Linux', 'qt-version': '6.11.2'}, {'os': 'ubuntu-24.04-arm', 'artifact-name': 'Linux-aarch64', 'qt-version': '6.11.2'}, {'os': 'windows-2022', 'artifact-name': 'Windows-MinGW-w64', 'msystem': 'CLANG64', 'vcvars-arch': 'amd64_x86', 'qt-version': '6.11.2'}, {'os': 'windows-2022', 'artifact-name': 'Windows-MSVC', 'vcvars-arch': 'amd64', 'qt-version': '6.11.2'}, {'os': 'windows-11-arm', 'artifact-name': 'Windows-MSVC-arm64', 'vcvars-arch': 'arm64', 'qt-version': '6.11.2'}, {'os': 'macos-26', 'artifact-name': 'macOS', 'macosx-deployment-target': '13.0', 'qt-version': '6.11.2'}]
+          windows = [{'os': 'windows-2022', 'artifact-name': 'Windows-MSVC', 'vcvars-arch': 'amd64', 'qt-version': '6.11.2'}]
+          linux = [{'os': 'ubuntu-24.04', 'artifact-name': 'Linux', 'qt-version': '6.11.2'}]
+
+          platform = os.environ.get("PLATFORM", "All")
+          event = os.environ.get("EVENT_NAME", "")
+
+          if event != "workflow_dispatch" or platform == "All":
+              selected = all_platforms
+          elif platform == "Windows x64":
+              selected = windows
+          elif platform == "Linux":
+              selected = linux
+          else:
+              raise ValueError(f"Unknown platform: {platform}")
+
+          print("matrix=" + json.dumps({"include": selected}))
+          PYSELECT
+
   build:
     name: Build (${{ matrix.artifact-name }})
 
@@ -39,39 +85,10 @@ jobs:
       # Required for vcpkg binary cache
       packages: write
 
+    needs: prepare
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            artifact-name: Linux
-            qt-version: 6.11.2
-
-          - os: ubuntu-24.04-arm
-            artifact-name: Linux-aarch64
-            qt-version: 6.11.2
-
-          - os: windows-2022
-            artifact-name: Windows-MinGW-w64
-            msystem: CLANG64
-            vcvars-arch: amd64_x86
-            qt-version: 6.11.2
-
-          - os: windows-2022
-            artifact-name: Windows-MSVC
-            # TODO(@getchoo): This is the default in setup-dependencies/windows. Why isn't it working?!?!
-            vcvars-arch: amd64
-            qt-version: 6.11.2
-
-          - os: windows-11-arm
-            artifact-name: Windows-MSVC-arm64
-            vcvars-arch: arm64
-            qt-version: 6.11.2
-
-          - os: macos-26
-            artifact-name: macOS
-            macosx-deployment-target: 13.0
-            qt-version: 6.11.2
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
 
     runs-on: ${{ matrix.os }}
 
